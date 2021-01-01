@@ -6,19 +6,47 @@ function _init()
  mouse.init()
  bombs:init()
  t = 0
+ _upd = run_upd
+ _drw = run_drw
 end
 
-function _update60()
+function run_upd()
  t += 1
  bombs:update()
  mouse.update()
 end
 
-function _draw()
+-- a function to change to the game over state
+function gameover()
+ _upd = over_upd
+ _drw = over_drw
+end
+
+function over_upd()
+ if btn(2) then
+  _init()
+ end
+end
+
+function over_drw()
+ cls()
+ print("---game over---", 64-8*4, 64, 8)
+ print("press ⬆️ to play again", 64-11*4, 64+10, 7)
+end
+
+function _update60()
+ _upd()
+end
+
+function run_drw()
  cls()
  map(0,0,0,0, 16, 16)
  bombs:draw()
  mouse.draw(mouse)
+end
+
+function _draw()
+ _drw()
 end
 -->8
 -- mouse --
@@ -65,13 +93,30 @@ mouse = {
 -->8
 -- bombs --
 bombs = {list={}}
+_tile_rel = {
+ [0] = {
+  kill = 5,
+  goal = 1,
+ },
+ [1] = {
+  kill = 1,
+  goal = 5,
+ },
+}
 
 function bombs:init()
+ bombs.list = {}
  add(self.list, bomb:new(64,64))
  add(self.list, bomb:new(50, 64))
 end
 
 function bombs:update()
+ -- spawn a new one
+ if t%90 == 0 then
+  add(self.list, bomb:new(64-4, 10))
+ end
+ 
+ -- move all bombs
  for b in all(self.list) do
   b:update()
  end
@@ -85,7 +130,7 @@ end
 
 function bombs:isbomb(x, y)
   for b in all(self.list) do
-   if collide(x,y,b.x,b.y) then
+   if b._upd == b.explosive and collide(x,y,b.x,b.y) then
     return true
    end
   end
@@ -94,7 +139,7 @@ end
 
 function bombs:startdrag(x, y)
   for b in all(self.list) do
-   if collide(x,y,b.x,b.y) then
+   if b._upd == b.explosive and collide(x,y,b.x,b.y) then
     b._upd=(b.drag)
     b.mox = x-b.x
     b.moy = y-b.y
@@ -106,8 +151,21 @@ end
 function bombs:stopdrag(x, y)
  for b in all(self.list) do
    if b._upd == b.drag then
-    b._upd=(b.explosive)
-    return
+    -- bomb got droped
+    local kill_flag = _tile_rel[b.col].kill
+    local goal_flag = _tile_rel[b.col].goal
+    
+    if overlap_a(b.x,b.y,kill_flag) then
+     gameover()
+     return
+    end
+    
+    if overlap_a(b.x,b.y,goal_flag) then
+     b._upd=(b.walk)
+    else
+     b._upd=(b.explosive)
+    end
+    
    end
   end
 end
@@ -125,7 +183,7 @@ bomb = {
 
 function bomb:_calc_speed()
  phi = rnd(2 * 3.1415)
- speed = 0.3
+ speed = 0.1
  self.vx = speed * cos(phi)
  self.vy = speed * sin(phi)
 end
@@ -172,6 +230,7 @@ end
 
 function bomb:draw()
  --print(mget(self.x/8, self.y/8) , self.x, self.y-8, 2)
+ --print(self._upd == self.explosive , self.x, self.y-8, 2)
  spr((t/15 % 2) + 2 + (16 * self.col), self.x,self.y)
 end
 -->8
